@@ -74,6 +74,88 @@ echo   ** INSTALLING ADD-IN **
 echo   -----------------------
 echo.
 color 0F
+echo   Choose installation method:
+echo   [1] Download from URL (Excel Nepali Date Converter)
+echo   [2] Select local file
+echo.
+set /p "install_method=  Enter your choice (1 or 2): "
+echo.
+
+if "%install_method%"=="1" (
+    call :download_and_install
+) else if "%install_method%"=="2" (
+    call :select_local_file
+) else (
+    color 0C
+    echo   ** INVALID CHOICE! **
+    echo   -------------------
+    echo   Please enter 1 or 2.
+    goto :eof
+)
+goto :eof
+
+:download_and_install
+color 0B
+echo   ** DOWNLOADING MANIFEST **
+echo   --------------------------
+echo.
+color 0F
+echo   Downloading Excel Nepali Date Converter manifest...
+echo   URL: https://excel-nepali-date-converter.vercel.app/manifest.xml
+echo.
+
+REM Set download path
+set "download_path=%temp%\office_addin_manifest.xml"
+
+REM Try PowerShell download first
+powershell -Command "try { Invoke-WebRequest -Uri 'https://excel-nepali-date-converter.vercel.app/manifest.xml' -OutFile '%download_path%' -UseBasicParsing; exit 0 } catch { exit 1 }" >nul 2>&1
+
+if !errorlevel! equ 0 (
+    color 0A
+    echo   Download successful!
+    echo.
+    set "manifest_path=%download_path%"
+    call :install_manifest
+) else (
+    REM Try curl if PowerShell fails
+    echo   PowerShell download failed, trying curl...
+    curl -s -o "%download_path%" "https://excel-nepali-date-converter.vercel.app/manifest.xml" >nul 2>&1
+    
+    if !errorlevel! equ 0 (
+        color 0A
+        echo   Download successful with curl!
+        echo.
+        set "manifest_path=%download_path%"
+        call :install_manifest
+    ) else (
+        REM Try certutil if curl fails
+        echo   Curl failed, trying certutil...
+        certutil -urlcache -split -f "https://excel-nepali-date-converter.vercel.app/manifest.xml" "%download_path%" >nul 2>&1
+        
+        if exist "%download_path%" (
+            color 0A
+            echo   Download successful with certutil!
+            echo.
+            set "manifest_path=%download_path%"
+            call :install_manifest
+        ) else (
+            color 0C
+            echo   ** DOWNLOAD FAILED! **
+            echo   ---------------------
+            echo   Unable to download manifest file.
+            echo   Please check your internet connection and try again.
+            echo.
+            echo   You can also try option 2 to select a local file.
+        )
+    )
+)
+goto :eof
+
+:select_local_file
+color 0F
+echo   ** SELECT LOCAL FILE **
+echo   ----------------------
+echo.
 echo   Please select your Office Add-in manifest file (.xml)
 echo.
 
@@ -116,14 +198,24 @@ if not defined manifest_path (
     goto :eof
 )
 
+call :install_manifest
+del "%vbs_script%" >nul 2>&1
+goto :eof
+
+:install_manifest
 REM Check if file exists
 if not exist "%manifest_path%" (
     color 0C
     echo   ** ERROR! **
     echo   ------------
-    echo   Selected file does not exist.
+    echo   Manifest file does not exist.
     goto :eof
 )
+
+color 0F
+echo   Installing manifest file...
+echo   Path: %manifest_path%
+echo.
 
 REM Create registry key and set manifest path
 reg add "%REGISTRY_PATH%" /f >nul 2>&1
@@ -133,19 +225,18 @@ if !errorlevel! equ 0 (
     color 0A
     echo   ** SUCCESS! **
     echo   --------------
-    echo   Add-in installed successfully!
+    echo   Excel Nepali Date Converter Add-in installed successfully!
     echo   Location: %manifest_path%
     echo.
     color 0B
     echo   Note: Please restart your Office applications to see the add-in.
+    echo   The add-in will appear in Excel's Insert tab under "My Add-ins".
 ) else (
     color 0C
     echo   ** ERROR! **
     echo   -----------
     echo   Failed to install add-in. Check permissions and try again.
 )
-
-del "%vbs_script%" >nul 2>&1
 color 0F
 goto :eof
 
